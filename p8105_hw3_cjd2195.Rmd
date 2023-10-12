@@ -7,7 +7,7 @@ date: "2023-10-14"
 
 Let's start by loading our libraries and creating some default settings. 
 
-```{r}
+```{r setup, include = FALSE}
 library(tidyverse)
 library(p8105.datasets)
 library(magrittr)
@@ -40,6 +40,10 @@ Great. Let's load our first dataset.
 
 ```{r}
 data("instacart")
+
+instacart = 
+  instacart |>
+  as_tibble()
 ```
 
 We are looking at a dataset of `r nrow(instacart)` observations and `r ncol(instacart)` variables, all relating to orders from Instacart. The variables include:
@@ -141,5 +145,65 @@ tidy_instacart |>
   pivot_wider(names_from = order_dow,
               values_from = mean_hour) |> 
   knitr::kable()
+```
+
+
+## Question 2
+
+First up: loading and cleaning data!
+
+```{r}
+data("brfss_smart2010")
+
+brfss_df = brfss_smart2010 |> 
+  as_tibble()
+
+tidy_brfss = 
+  brfss_df |> 
+  janitor::clean_names() |> 
+  rename(location_abbr = locationabbr,
+         location_desc = locationdesc,
+         ) |> 
+  filter(topic == "Overall Health") |> 
+  mutate(response =
+           forcats::fct_relevel(response, c("Poor", "Fair", "Good", "Very good", "Excellent")))
+```
+
+```{r}
+tidy_brfss |> 
+  filter(year == 2002) |> 
+  count(location_abbr) |> 
+  filter(n >= (5*7)) |> 
+  nrow()  
+```
+
+In 2002, only `r tidy_brfss |> filter (year == 2002) |> count(location_abbr) |> filter(n >= (5*7)) |> nrow()` states had more than 7 locations polled. This compares to `r tidy_brfss |> filter (year == 2010) |> count(location_abbr) |> filter(n >= (5*7)) |> nrow()` states in 2010.
+
+```{r, fig.asp= 1}
+
+tidy_brfss |> 
+  filter(response == "Excellent") |> 
+  group_by(year, location_abbr) |> 
+  summarize(n = n(), average_state_prevalence = mean(data_value)) |> 
+  ggplot(aes(x = year, y = average_state_prevalence, color = fct_reorder(location_abbr, average_state_prevalence))) +
+  geom_line() + 
+  labs(
+    title = "Average Prevalence of Self-Reported Excellent Health by State, 2002-2010",
+    x = "Year",
+    y = "Prevalence",
+    color = "State"
+  ) + 
+  theme(plot.title = element_text(size = 12), plot.title.position = "plot")
+
+```
+
+```{r}
+tidy_brfss |> 
+  filter(year == 2006 | year == 2010) |> 
+  filter(location_abbr == "NY") |> 
+  group_by(year, location_desc) |> 
+  ggplot(aes(x = data_value, y = location_desc, fill = response)) +
+  geom_col() +
+  facet_grid(. ~ year)
 ```
 
