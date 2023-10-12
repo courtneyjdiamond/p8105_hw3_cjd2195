@@ -5,13 +5,12 @@ output: github_document
 date: "2023-10-14"
 ---
 
-## Question 1
-
 Let's start by loading our libraries and creating some default settings. 
 
 ```{r}
 library(tidyverse)
 library(p8105.datasets)
+library(magrittr)
 
 
 knitr::opts_chunk$set(
@@ -35,15 +34,112 @@ scale_fill_discrete = scale_fill_viridis_d
 
 ```
 
-Great. Let's load our data. 
+## Question 1
+
+Great. Let's load our first dataset. 
 
 ```{r}
 data("instacart")
-
-instacart_df = instacart
-
-instacart_df
 ```
 
-We're looking at a dataset of `r nrow(pull(instacart))` observations and `r ncol(pull(instacart))` variables. 
+We are looking at a dataset of `r nrow(instacart)` observations and `r ncol(instacart)` variables, all relating to orders from Instacart. The variables include:
+
+* `order_id`: the unique identifier of the order
+* `product_id`: the unique identifier of the product
+* `add_to_cart_order`: the order in which the item was placed into the cart
+* `reordered`: an indicator of whether or not the product is a repeat order
+* `user_id`: a user's unique identifier
+* `eval_set`: whether the observation is part of a training or test set for some model
+* `order_number`: for a specific user, the sequence of the whole order in relation to all orders made
+* `order_dow`: which day of the week the order was placed
+* `order_hour_of_day`: which hour of the day the order was placed
+* `days_since_prior_order`: number of days since the user's last order
+* `product_name`: the human-readable product name
+* `aisle_id`: the unique identifier of the aisle the product is in
+* `department_id`: the unique identifier of the department the product is in
+* `aisle`: the human-readable name of the aisle the product is in
+* `department`: the human-readable name of the department the product is in
+
+Each individual line or observations corresponds to a specific product in a specific order by a specific user, and contains additional details about the order and product. Let's walk through the first line. `order_id` is 1; this represents a single order by a single user, and is the only order in the dataset with this ID. `product_id` is the product in question; the corresponding human-readable name is in the `product_name` column. The `add_to_cart_order` tells us that this product was the very first thing the person put in their cart when building this order, and `reordered` tells us whether or not the person ordered the product before (in this case, yes). The `user_id` is 112108; all of this person's orders and products will have this value. `eval_set` doesn't give us information about the order or product, but rather what the downstream use of the observation is for: in this case, it will be part of the end-user's training set for a given ML or other model. `order_number` tells us that this is the fourth order for this individual user, and `order_dow` tells us which day of the week the order was placed on (but there's no data to tell us which day the 4th day of the week is, so it's a little hard to interpret). `order_hour_of_day` tells us they ordered this sometime between 10AM and 11AM (presuming they're using standard military time). We can see that there have been 9 days since the user's last order, as indicated by the `days_since_prior_order` column. We've already covered that the `product_name` is the human readable version of the `product_id`, so in this case we're looking at some Bulgarian yogurt; `aisle_id` and `department_id` tell us that this is found in a specific aisle and department; the corresponding `aisle` and `department` variables tell us in human-readable terms that we can find this product in the yogurt aisle of the "dairy eggs" department. 
+
+Let's do some tidying! I don't think we need the `eval_set` variable (the online description notes we are only working with training observations here, and none of the questions I have pertain to this). I'm also going to reorder so similar variables are grouped together, and recode the `reordered` variable to "yes" and "no" to make it more obvious to a human reader. I'll hold off on recoding the `order_dow` variable because there's no definitive answer in the original README file online about which number corresponds to which day. 
+
+```{r}
+tidy_instacart = 
+instacart |> 
+  select(!eval_set) |> 
+  relocate(order_id,
+           user_id,
+           order_number,
+           order_dow,
+           order_hour_of_day,
+           days_since_prior_order,
+           add_to_cart_order,
+           reordered,
+           product_id,
+           product_name,
+           aisle_id, aisle,
+           department_id,
+           department) |> 
+  mutate(
+    reordered = 
+      case_match(
+        reordered,
+        1 ~ "yes",
+        0 ~ "no"), 
+    reordered = 
+      as.factor(reordered))
+
+```
+
+First up, we want to know how many aisles there are. We can establish this by calling `group_by(aisle_id)`, and figuring out how many groups are consequently made. We end up with `r tidy_instacart |> group_by(aisle_id) |> n_groups()` aisles. 
+
+```{r}
+tidy_instacart |> 
+  group_by(aisle_id) |> 
+  n_groups()
+```
+
+We also want to know which aisles have the most products ordered from them! I am going to interpret this as raw counts represented by the number of times a product is listed in the table, and NOT group by the item itself as a conceptual level. (That is, if there are 1,000,000 rows corresponding to 1 type of ice cream, I will count each of those individually, and not simply as 1 product.) We end up with the `r tidy_instacart |> group_by(aisle_id, aisle) |>  summarize(n = n()) |> arrange(desc(n)) |> ungroup(aisle_id) |> slice(1) %$% aisle` aisle having the most products ordered (`r tidy_instacart |> group_by(aisle_id, aisle) |>  summarize(n = n()) |> arrange(desc(n)) |> ungroup(aisle_id) |> slice(1) %$% n`), followed by the `r tidy_instacart |> group_by(aisle_id, aisle) |>  summarize(n = n()) |> arrange(desc(n)) |> ungroup(aisle_id) |> slice(2) %$% aisle` with `r tidy_instacart |> group_by(aisle_id, aisle) |>  summarize(n = n()) |> arrange(desc(n)) |> ungroup(aisle_id) |> slice(2) %$% n` products, and the `r tidy_instacart |> group_by(aisle_id, aisle) |>  summarize(n = n()) |> arrange(desc(n)) |> ungroup(aisle_id) |> slice(3) %$% aisle` taking third place with `r tidy_instacart |> group_by(aisle_id, aisle) |>  summarize(n = n()) |> arrange(desc(n)) |> ungroup(aisle_id) |> slice(3) %$% n` products.
+
+
+Great- now let's graph it!
+```{r}
+tidy_instacart |> 
+  count(aisle) |> 
+  filter(n > 10000) |> 
+  mutate(aisle = 
+           fct_reorder(aisle, n, desc)) |> 
+  ggplot(aes(x = aisle, y = n)) + 
+  geom_point() +
+  theme(axis.text.x = element_text(angle = 60, hjust = 1)) +
+  labs(title = "Number of Products Ordered from Each Aisle")
+```
+
+Now we want to examine a few aisles more closely. 
+
+```{r}
+tidy_instacart |> 
+  filter(aisle == "baking ingredients" | aisle == "dog food care" | aisle == "packaged vegetables fruits") |> 
+  count(aisle, product_name) |> 
+  group_by(aisle) |> 
+  arrange(desc(n)) |> 
+  mutate(rank = min_rank(desc(n))) |> 
+  filter(rank < 4) |> 
+  select(!rank) |>  
+  knitr::kable()
+```
+
+
+Now let's look at a couple of specific products. 
+
+```{r}
+tidy_instacart |> 
+  filter(product_name == "Pink Lady Apples" | product_name == "Coffee Ice Cream") |> 
+  group_by(product_name, order_dow) |> 
+  summarize(mean_hour = mean(order_hour_of_day)) |> 
+  pivot_wider(names_from = order_dow,
+              values_from = mean_hour) |> 
+  knitr::kable()
+```
 
