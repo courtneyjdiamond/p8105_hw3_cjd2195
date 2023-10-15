@@ -188,9 +188,9 @@ tidy_brfss |>
   ggplot(aes(x = year, y = average_state_prevalence, color = fct_reorder(location_abbr, average_state_prevalence))) +
   geom_line() + 
   labs(
-    title = "Average Percentage of Self-Reported Excellent Health by State, 2002-2010",
+    title = "Average Percentage of Self-Reported 'Excellent' Health Status by State, 2002-2010",
     x = "Year",
-    y = "Prevalence",
+    y = "Percentage Reported",
     color = "State"
   ) + 
   theme(plot.title = element_text(size = 12), plot.title.position = "plot")
@@ -220,6 +220,21 @@ tidy_brfss |>
   filter(year == 2006 | year == 2010) |> 
   filter(location_abbr == "NY") |> 
   group_by(year, response) |> 
+  ggplot(aes(x = data_value, y = response)) +
+  geom_density_ridges(aes(fill = response)) +
+  facet_grid(~year) +
+  labs(
+    title = "Distributions of Overall Health Responses Among NY Locations, 2006 and 2010",
+    x = "Reported Percentage",
+    y = "Response",
+    fill = "Response"
+  ) +
+  theme(plot.title = element_text(size = 12), plot.title.position = "plot")
+
+tidy_brfss |> 
+  filter(year == 2006 | year == 2010) |> 
+  filter(location_abbr == "NY") |> 
+  group_by(year, response) |> 
   ggplot(aes(x = response, y = data_value)) +
   geom_boxplot() +
   facet_grid(~year) +
@@ -231,30 +246,29 @@ tidy_brfss |>
   theme(plot.title = element_text(size = 12), plot.title.position = "plot",
         axis.text.x = element_text(angle = 60, hjust = 1))
 
-
 tidy_brfss |> 
   filter(year == 2006 | year == 2010) |> 
   filter(location_abbr == "NY") |> 
   group_by(year, response) |> 
   ggplot(aes(x = response, y = data_value)) + 
-  geom_violin(aes(fill = response))+
+  geom_violin(aes())+
   facet_grid(~year) + 
-  stat_summary(fun = "mean")
-
-
-tidy_brfss |> 
-  filter(year == 2006 | year == 2010) |> 
-  filter(location_abbr == "NY") |> 
-  group_by(year, response) |> 
-  ggplot(aes(x = data_value, y = response)) +
-  geom_density_ridges(aes(fill = response)) +
-  facet_grid(~year)
+  stat_summary(fun = "mean") +
+  labs(
+    title = "Distributions of Overall Health Responses Among NY Locations, 2006 and 2010",
+    x = "Response",
+    y = "Reported Percentage"
+  ) + 
+  theme(plot.title = element_text(size = 12), plot.title.position = "plot",
+        axis.text.x = element_text(angle = 60, hjust = 1))
 ```
 
-I generated two plots for this question, and I think each of them has their own merit depending on what the reader is looking for from a visualization of this data. The first plot is a density plot, and provides a good "quick" visual that generally shows us how the distributions differed between the two time points, but the boxplot provides more information about the mean, IQR, and outliers and is (probably) preferred by those who really want to extract these details from a visual. 
+I generated a few plots for this question, because I wanted to see which one I'd find most informative if I were just a random person interested in looking at the distribution. I think each of them has their own merit depending on what a reader is looking for from a visualization of this data. The first plot is a density plot, and provides a good "quick" visual that generally shows us how the distributions differed between the two time points, but the overlap is a little busy. The ridgeplot is a good alternative if I'm set on looking at the shape of the distributions (assessing normality, bimodal, etc.) but I don't think that's super helpful here because I'm mostly just trying to compare the different responses to one another rather than understand their individual distributions. The boxplot provides more immediately accessible information about the mean, IQR, and outliers, as does the violin plot, albeit in a more ~ aesthetically pleasing ~ kind of way. I think I personally prefer the boxplot though. 
 
 
 ## Question 3
+
+Let's read, clean, tidy, and join some data! I'm going to both recode the sex and education levels, as well as relevel them as factor variables to help me later on. Then I'll join the datasets, filter by the specified age, and also drop any rows with NAs in the demographic columns. 
 
 ```{r}
 nhanes_accel = read_csv("data/nhanes_accel.csv") |> 
@@ -300,19 +314,28 @@ nhanes_combined |>
   pivot_wider(names_from = sex,
               values_from = n) |> 
   knitr::kable()
+```
 
+First up is summarizing the counts of participants by age and sex. 
+
+```{r}
 nhanes_combined |> 
   group_by(sex, education) |> 
-  ggplot(aes(x = education, y = age, fill = sex)) + 
+  ggplot(aes(x = education, y = age, color = sex)) + 
   geom_boxplot() +
   labs(
     title = "NHANES Accelerometer Age Distrubtions by Sex and Education Level",
     x = "Highest Education Level",
     y = "Age",
-    fill = "Sex"
+    color = "Sex"
   ) +
   theme(plot.title = element_text(size = 12), plot.title.position = "plot")
 ```
+
+Second up is making a plot to show the distribution of ages of participants by both sex and education level. I have to admit I'm not a huge fan of these two colors, but will defer to the wish to use the viridis color palette. 
+
+Our data seem to be saying that there are roughly the same number of men and women in the study with a highest education level of "less than high-school", and their average age is roughly the same as is the range and IQR of ages. Noticeably there are more men than women with a high-school equivalent education, and the average age and IQR of age of women in this category is higher than men, though the range of ages is about the same. Finally, there are roughly similiar numbers of men and women whose education level extends beyond high school, and in this group, the men's average age is higher than the women's while the range and IQR are roughly the same.
+
 
 ### Question 3B
 
@@ -348,6 +371,14 @@ nhanes_combined |>
 
 ```
 
+There are a lot of steps involved in this part of the question! Firstly, I'm going to create two summary variables, one that sums all activity and another that averages all activity. (In retrospect I realize that the mean is sort of useless because it's just a scaled version of the sum...but it is nice because it makes the values smaller so I'm going to use it in my visualization.) Now I want to group by sex and education because I am interested in knowing how activity levels vary among these groups. Finally, time to plot!  
+
+Our plots show some interesting trends. For the "less than high school" education level, we can see an overall decrease in measured activity levels as age increases, but both men and women see a change in the trend as they approach 60 years (men see an uptick and women see a plateau). Though women start with higher mean activity levels than men before the age of 30 in this category, both men and women ultimately reach similar levels around 80 years of age. The difference between final and initial activity levels (for both men and women) is the greatest for this educational level compared to the others. 
+
+The second facet, the "high school equivalent" group, also shows an overall decrease in activity levels for both women and men, but the trends do not take the same shape as those in the previous group. Women see an increase between the ages of 20 and 40 years, then a decline into their 60s, followed by an uptick in their 70s before ultimatley decreasing to their lowest levels at the age of 80. Men don't have the same initial uptick as they approach their 40s, but do show the same decline into their 60s, and ultimately have similar levels to women as they approach 80.
+
+Last but not least, the "more than high school" group shows the most stable overall trends as compared to the other groups. The initial activity levels at age 20 for both men and women are lower than those for those in the "less than high school" group, but are roughly the same as the "high school equivalent" group. However, for both men and women, they stay roughly the same to age 50; here, men show a steady decline in levels until they reach their 80s, and women continue with the same initial level until their 60s. The difference between the final and initial mean activity levels is similar to that in the high-school equivalent educaiton group. 
+
 ### Question 3C
 
 ```{r}
@@ -374,3 +405,8 @@ nhanes_combined |>
   theme(plot.title = element_text(size = 12), plot.title.position = "plot")
 ```
 
+At a 10,000 foot glance, the overall trends of 24-hour activity levels are the same among educational groups and sexes: we see a nadir just before 5:00AM, a peak sometime between 10:00AM and 8:00PM, then a decline in activity that we can presume continues until the next morning's nadir. However, there are some subtle differences to note: for the "less than high school group", there are two parts to the descending curve after reaching the peak level: a slight decrease through around 8:00PM, then a steeper decrease through midnight. The high-school equivalent and more than high school groups appear to have more prominent secondary peaks, around 8:00PM, then followed by a similar steep decrease in activity through midnight. The local minimum appears at roughly the same time for each group, 3:00PM. It appears that the high school equivalent education group has the lowest peak activity levels throughout the day, and the less than high school group the highest. 
+
+Thus far I've touched on differences by educational level; for sex, differences are most apparent in the "more than high school" educational group. Women have higher activity levels than men, and appear to reach that peak earlier than men (slightly before 10:00AM compared to roughly 12:00noon.) Women in the high school equivalent group also have higher activity levels, but most distinctly in the morning, where they too reach their peak sooner than men. Finally, women in the less than high school group also have higher peak levels than men (though to a lesser degree), but ever so slightly lower levels during ascent and descent. They also appear to have less activity thoughout the early morning hours. 
+
+Conlcusions I feel comfortable making, without having performed any statistical analyses: activity is lowest early in the morning, after midnight until roughly 5AM, for all educational levels. This most likely corresponds to sleep. Peak activity levels vary by both sex and education level; appear to have higher peak mean activity levels than men, and those with less than a high school educaiton have higher peaks than those in the high school or more than high school education groups. The high-school equivalent and more than high school groups appear to have a secondary peak after a small decrease after the first peak; it would be interesting to observe them and understand what the dip and peak corresponds to (maybe post-prandial sleepiness, followed by a resurgence in energy?). I'd be curious to know, more importantly, why I *don't* see this dip and secondary peak in the less than high-school group. 
